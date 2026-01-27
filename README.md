@@ -2,7 +2,7 @@
 
 A fully customized Pterodactyl Panel with game-specific addons, admin tools, and premium themes - **completely FREE!**
 
-![Banner](https://img.shields.io/badge/version-1.0.0-blue) ![License](https://img.shields.io/badge/license-MIT-green) ![Stars](https://img.shields.io/github/stars/paimon-pro/pterodactyl-addons?style=social)
+![Banner](https://img.shields.io/badge/version-1.0.0-blue) ![License](https://img.shields.io/badge/license-MIT-green) ![Stars](https://img.shields.io/github/stars/MuLTiAcidi/pterodactyl-addons?style=social)
 
 ## ✨ Features
 
@@ -44,7 +44,7 @@ A fully customized Pterodactyl Panel with game-specific addons, admin tools, and
 ### One-Command Installation
 
 ```bash
-bash <(curl -s https://raw.githubusercontent.com/paimon-pro/pterodactyl-addons/main/install.sh)
+bash <(curl -s https://raw.githubusercontent.com/MuLTiAcidi/pterodactyl-addons/main/install.sh)
 ```
 
 The script will:
@@ -75,7 +75,7 @@ If you prefer manual installation:
 ```bash
 # 1. Download the panel
 cd /var/www
-curl -Lo pterodactyl.tar.gz https://github.com/paimon-pro/pterodactyl-addons/releases/latest/download/pterodactyl-addons-panel.tar.gz
+curl -Lo pterodactyl.tar.gz https://github.com/MuLTiAcidi/pterodactyl-addons/releases/latest/download/pterodactyl-addons-panel.tar.gz
 mkdir pterodactyl && tar -xzf pterodactyl.tar.gz -C pterodactyl
 cd pterodactyl
 
@@ -97,7 +97,7 @@ chown -R www-data:www-data /var/www/pterodactyl/*
 After installing the panel, you need Wings on your game server nodes:
 
 ```bash
-bash <(curl -s https://raw.githubusercontent.com/paimon-pro/pterodactyl-addons/main/wings-install.sh)
+bash <(curl -s https://raw.githubusercontent.com/MuLTiAcidi/pterodactyl-addons/main/wings-install.sh)
 ```
 
 Or use the official Pterodactyl Wings installer.
@@ -122,8 +122,8 @@ STRIPE_WEBHOOK_SECRET=whsec_xxx
 
 ## 🆘 Support
 
-- **Issues:** [GitHub Issues](https://github.com/paimon-pro/pterodactyl-addons/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/paimon-pro/pterodactyl-addons/discussions)
+- **Issues:** [GitHub Issues](https://github.com/MuLTiAcidi/pterodactyl-addons/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/MuLTiAcidi/pterodactyl-addons/discussions)
 
 ## 📜 License
 

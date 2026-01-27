@@ -26,7 +26,7 @@ WHITE='\033[1;37m'
 NC='\033[0m' # No Color
 
 # Variables
-GITHUB_URL="https://github.com/paimon-pro/pterodactyl-addons"
+GITHUB_URL="https://github.com/MuLTiAcidi/pterodactyl-addons"
 PANEL_VERSION="1.0.0"
 INSTALL_DIR="/var/www/pterodactyl"
 
