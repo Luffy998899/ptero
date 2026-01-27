@@ -64,11 +64,14 @@ The script will:
 ### Dashboard
 ![Dashboard](screenshots/dashboard.png)
 
-### Game Addons
-![Game Addons](screenshots/game-addons.png)
+### Server Client View
+![Server Client](screenshots/server-client.png)
 
-### Admin Panel
-![Admin Panel](screenshots/admin-panel.png)
+### Plugins Manager
+![Plugins](screenshots/Plugins.png)
+
+### Admin Addons
+![Admin Addons](screenshots/admin-addons.png)
 
 ## 🔧 Manual Installation
 
