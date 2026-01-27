@@ -11,7 +11,7 @@ set -e
 #  - All admin addons (Billing, Subdomains, Resource Upgrades, etc.)               #
 #  - Premium themes (Neon Gaming, Eltahost)                                         #
 #                                                                                    #
-#  Free & Open Source - Created with love <3                                        #
+#  Made with ❤️ by elta.one (EltaGamingHost) - Given away for FREE!                 #
 #                                                                                    #
 ######################################################################################
 
@@ -519,7 +519,8 @@ print_complete() {
     echo -e "  ${GREEN}✓${NC} Themes: Neon Gaming, Eltahost Premium"
     echo ""
     echo -e "${PURPLE}Thank you for using Pterodactyl Addons Panel!${NC}"
-    echo -e "${PURPLE}Free & Open Source - Made with ❤️${NC}"
+    echo -e "${PURPLE}Made with ❤️ by elta.one (EltaGamingHost)${NC}"
+    echo -e "${PURPLE}Given away for FREE - Enjoy!${NC}"
     echo ""
 }
 

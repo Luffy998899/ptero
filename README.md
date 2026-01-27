@@ -2,6 +2,8 @@
 
 A fully customized Pterodactyl Panel with game-specific addons, admin tools, and premium themes - **completely FREE!**
 
+> **Made with ❤️ by [elta.one](https://elta.one) (EltaGamingHost) and given away for FREE!**
+
 ![Banner](https://img.shields.io/badge/version-1.0.0-blue) ![License](https://img.shields.io/badge/license-MIT-green) ![Stars](https://img.shields.io/github/stars/MuLTiAcidi/pterodactyl-addons?style=social)
 
 ## ✨ Features
@@ -137,6 +139,8 @@ This project is open source and available under the [MIT License](LICENSE).
 
 ---
 
-**Made with ❤️ and given away for FREE!**
+---
+
+**Made with ❤️ by [elta.one](https://elta.one) (EltaGamingHost) and given away for FREE!**
 
 ⭐ If you like this project, please give it a star!
