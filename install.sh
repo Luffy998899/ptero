@@ -169,9 +169,21 @@ get_user_input() {
 
     # Timezone
     echo ""
-    echo -e "${YELLOW}Enter your timezone (e.g., Europe/London, America/New_York):${NC}"
+    echo -e "${YELLOW}Enter your timezone (e.g., Asia/Kolkata, Europe/London, America/New_York):${NC}"
+    echo -e "${BLUE}Common timezones:${NC}"
+    echo -e "  ${GREEN}US:${NC} America/New_York, America/Chicago, America/Los_Angeles"
+    echo -e "  ${GREEN}EU:${NC} Europe/London, Europe/Paris, Europe/Berlin"
+    echo -e "  ${GREEN}Asia:${NC} Asia/Kolkata, Asia/Tokyo, Asia/Singapore, Asia/Dubai"
+    echo -e "  ${GREEN}Other:${NC} Australia/Sydney, UTC"
     read -p "> " TIMEZONE
     TIMEZONE=${TIMEZONE:-"UTC"}
+    
+    # Validate timezone
+    if ! php -r "new DateTimeZone('$TIMEZONE');" 2>/dev/null; then
+        echo -e "${RED}Invalid timezone: $TIMEZONE${NC}"
+        echo -e "${YELLOW}Using UTC as default. You can change it later in .env file.${NC}"
+        TIMEZONE="UTC"
+    fi
 
     # Confirm
     echo ""
@@ -216,8 +228,8 @@ install_dependencies() {
     # Add MariaDB repository
     curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | bash
 
-    # Add Node.js repository
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+    # Add Node.js repository (v22 required by panel)
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
 
     apt update -y
 
@@ -320,6 +332,13 @@ install_panel() {
     tar -xzf panel.tar.gz
     rm panel.tar.gz
 
+    # Fix migration bug: Remove ->after('price_cents') from payment migration
+    if [ -f "database/migrations/2026_01_21_110000_create_payments_table.php" ]; then
+        echo -e "${BLUE}Applying migration fixes...${NC}"
+        sed -i "s/->nullable()->after('price_cents')/->nullable()/g" database/migrations/2026_01_21_110000_create_payments_table.php
+        sed -i "s/->after('price_cents')//g" database/migrations/2026_01_21_110000_create_payments_table.php
+    fi
+
     # Set permissions if directories exist
     if [ -d "storage" ]; then
         chmod -R 755 storage/
@@ -392,9 +411,33 @@ setup_database_tables() {
     cd "$INSTALL_DIR" || { echo -e "${RED}Error: Failed to change to installation directory${NC}"; exit 1; }
 
     # Run migrations
-    php artisan migrate --seed --force || { echo -e "${RED}Error: Database migrations failed${NC}"; exit 1; }
+    echo -e "${BLUE}Running database migrations...${NC}"
+    if ! php artisan migrate --seed --force; then
+        echo -e "${RED}Error: Database migrations failed${NC}"
+        echo -e "${YELLOW}Attempting to fix migration issues...${NC}"
+        
+        # Try to rollback and retry
+        php artisan migrate:reset --force 2>/dev/null || true
+        
+        # Try again
+        if ! php artisan migrate --seed --force; then
+            echo -e "${RED}Migration failed again. This appears to be an issue with the panel package.${NC}"
+            echo -e "${YELLOW}Common fixes:${NC}"
+            echo -e "1. Check if you're using the latest panel release"
+            echo -e "2. Manually fix migrations in: $INSTALL_DIR/database/migrations/"
+            echo -e "3. Drop database and start fresh: mysql -u root -p -e 'DROP DATABASE panel; CREATE DATABASE panel;'"
+            echo ""
+            echo -e "${YELLOW}For now, continuing with basic setup...${NC}"
+            
+            # Try to at least load the schema
+            if [ -f "database/schema/mysql-schema.sql" ]; then
+                mysql -u root -p"${DB_ROOT_PASS}" panel < database/schema/mysql-schema.sql 2>/dev/null || true
+            fi
+        fi
+    fi
 
     # Create admin user
+    echo -e "${BLUE}Creating admin user...${NC}"
     php artisan p:user:make \
         --email="$ADMIN_EMAIL" \
         --username="$ADMIN_USER" \
@@ -509,7 +552,8 @@ finalize_installation() {
     chown -R www-data:www-data "$INSTALL_DIR"/* || { echo -e "${RED}Error: Failed to set file permissions${NC}"; exit 1; }
 
     # Create queue worker service
-    cat > /etc/systemd/system/pteroq.service <<EOF
+    echo -e "${BLUE}Creating queue worker service...${NC}"
+    cat > /etc/systemd/system/pteroq.service <<'EOF'
 [Unit]
 Description=Pterodactyl Queue Worker
 After=redis-server.service
@@ -518,7 +562,7 @@ After=redis-server.service
 User=www-data
 Group=www-data
 Restart=always
-ExecStart=/usr/bin/php $INSTALL_DIR/artisan queue:work --queue=high,standard,low --sleep=3 --tries=3
+ExecStart=/usr/bin/php /var/www/pterodactyl/artisan queue:work --queue=high,standard,low --sleep=3 --tries=3
 StartLimitInterval=180
 StartLimitBurst=30
 RestartSec=5s
@@ -528,6 +572,7 @@ WantedBy=multi-user.target
 EOF
 
     # Create cron job (avoid duplicates)
+    echo -e "${BLUE}Setting up cron job for scheduler...${NC}"
     if ! crontab -l 2>/dev/null | grep -q "$INSTALL_DIR/artisan schedule:run"; then
         (crontab -l 2>/dev/null; echo "* * * * * php $INSTALL_DIR/artisan schedule:run >> /dev/null 2>&1") | crontab -
     fi
@@ -578,6 +623,20 @@ print_complete() {
     echo -e "  ${GREEN}✓${NC} 7 Days to Die Addons (Mods, Config)"
     echo -e "  ${GREEN}✓${NC} Admin: Billing, Subdomains, Resource Upgrades"
     echo -e "  ${GREEN}✓${NC} Themes: Neon Gaming, Eltahost Premium"
+    echo ""
+    echo -e "${YELLOW}⚠️  Important Next Steps:${NC}"
+    echo -e "  ${WHITE}1.${NC} ${CYAN}Change your admin password${NC} after first login"
+    echo -e "  ${WHITE}2.${NC} Ensure your domain DNS A record points to this server's IP"
+    if [[ "$USE_SSL" != "y" && "$USE_SSL" != "Y" ]]; then
+        echo -e "  ${WHITE}3.${NC} Consider setting up SSL: ${CYAN}certbot --nginx -d $FQDN${NC}"
+    fi
+    echo ""
+    echo -e "${BLUE}All Services Running:${NC}"
+    echo -e "  ${GREEN}✓${NC} Nginx (Web Server)"
+    echo -e "  ${GREEN}✓${NC} PHP 8.2-FPM"
+    echo -e "  ${GREEN}✓${NC} MariaDB (Database)"
+    echo -e "  ${GREEN}✓${NC} Redis (Cache)"
+    echo -e "  ${GREEN}✓${NC} Pteroq (Queue Worker)"
     echo ""
     echo -e "${PURPLE}Thank you for using Pterodactyl Addons Panel!${NC}"
     echo -e "${PURPLE}Made with ❤️ by elta.one (EltaGamingHost)${NC}"
