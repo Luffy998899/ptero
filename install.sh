@@ -2,6 +2,9 @@
 
 set -e
 
+# Error handler
+trap 'echo -e "${RED}Error occurred on line $LINENO. Installation failed!${NC}"; exit 1' ERR
+
 ######################################################################################
 #                                                                                    #
 #  Pterodactyl Addons Panel - Installer                                             #
@@ -224,6 +227,17 @@ install_dependencies() {
         php8.2-bcmath php8.2-xml php8.2-curl php8.2-zip php8.2-intl php8.2-redis \
         mariadb-server nginx redis-server nodejs tar unzip git
 
+    # Fix mariadb installation issues on Ubuntu 22.04
+    # Some versions need explicit initialization
+    if [ ! -d "/var/lib/mysql/mysql" ]; then
+        echo -e "${BLUE}Initializing MariaDB...${NC}"
+        mysql_install_db --user=mysql --basedir=/usr --datadir=/var/lib/mysql 2>/dev/null || true
+    fi
+
+    # Ensure MariaDB can be started
+    chown -R mysql:mysql /var/lib/mysql
+    chmod 755 /var/lib/mysql
+
     # Install Composer
     curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
@@ -241,15 +255,36 @@ configure_database() {
     systemctl start mariadb
     systemctl enable mariadb
 
-    # Secure MariaDB
-    mysql -u root <<EOF
-ALTER USER 'root'@'localhost' IDENTIFIED BY '${DB_ROOT_PASS}';
+    # Wait for MariaDB to be ready
+    sleep 5
+    
+    # Check if MariaDB is running
+    if ! systemctl is-active --quiet mariadb; then
+        echo -e "${RED}Error: MariaDB failed to start!${NC}"
+        systemctl status mariadb
+        exit 1
+    fi
+
+    # Secure MariaDB - handle socket authentication on Ubuntu 22.04
+    mysql -u root <<'EOF'
+ALTER USER 'root'@'localhost' IDENTIFIED BY 'TEMP_ROOT_PASS';
 DELETE FROM mysql.user WHERE User='';
 DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
 DROP DATABASE IF EXISTS test;
-DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
+DELETE FROM mysql.db WHERE Db='test' OR Db='test\_%';
 FLUSH PRIVILEGES;
 EOF
+
+    # Update root password with actual password
+    mysql -u root -pTEMP_ROOT_PASS <<EOF
+ALTER USER 'root'@'localhost' IDENTIFIED BY '${DB_ROOT_PASS}';
+FLUSH PRIVILEGES;
+EOF
+
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Error: Failed to set root password. MariaDB may not be properly initialized.${NC}"
+        exit 1
+    fi
 
     # Create panel database and user
     mysql -u root -p"${DB_ROOT_PASS}" <<EOF
@@ -258,6 +293,11 @@ CREATE USER IF NOT EXISTS 'pterodactyl'@'127.0.0.1' IDENTIFIED BY '${DB_PASS}';
 GRANT ALL PRIVILEGES ON panel.* TO 'pterodactyl'@'127.0.0.1' WITH GRANT OPTION;
 FLUSH PRIVILEGES;
 EOF
+
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Error: Failed to create panel database and user.${NC}"
+        exit 1
+    fi
 
     echo -e "${GREEN}✓ Database configured${NC}"
 }
@@ -268,8 +308,8 @@ install_panel() {
     echo -e "${CYAN}[3/8] Downloading and installing panel...${NC}"
 
     # Create directory
-    mkdir -p $INSTALL_DIR
-    cd $INSTALL_DIR
+    mkdir -p "$INSTALL_DIR" || { echo -e "${RED}Error: Failed to create installation directory${NC}"; exit 1; }
+    cd "$INSTALL_DIR" || { echo -e "${RED}Error: Failed to change to installation directory${NC}"; exit 1; }
 
     # Download panel
     echo -e "${BLUE}Downloading panel package...${NC}"
@@ -280,8 +320,13 @@ install_panel() {
     tar -xzf panel.tar.gz
     rm panel.tar.gz
 
-    # Set permissions
-    chmod -R 755 storage/* bootstrap/cache/
+    # Set permissions if directories exist
+    if [ -d "storage" ]; then
+        chmod -R 755 storage/
+    fi
+    if [ -d "bootstrap/cache" ]; then
+        chmod -R 755 bootstrap/cache/
+    fi
 
     echo -e "${GREEN}✓ Panel downloaded and extracted${NC}"
 }
@@ -291,20 +336,24 @@ configure_panel() {
     echo ""
     echo -e "${CYAN}[4/8] Configuring panel...${NC}"
 
-    cd $INSTALL_DIR
+    cd "$INSTALL_DIR" || { echo -e "${RED}Error: Failed to change to installation directory${NC}"; exit 1; }
 
     # Copy environment file
-    cp .env.example .env
+    if [ ! -f ".env.example" ]; then
+        echo -e "${RED}Error: .env.example file not found${NC}"
+        exit 1
+    fi
+    cp .env.example .env || { echo -e "${RED}Error: Failed to copy environment file${NC}"; exit 1; }
 
     # Install Composer dependencies
     echo -e "${BLUE}Installing PHP dependencies...${NC}"
-    COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction
+    COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction || { echo -e "${RED}Error: Composer install failed${NC}"; exit 1; }
 
     # Generate app key
-    php artisan key:generate --force
+    php artisan key:generate --force || { echo -e "${RED}Error: Failed to generate app key${NC}"; exit 1; }
 
     # Configure environment
-    php artisan p:environment:setup \
+    if ! php artisan p:environment:setup \
         --author="$ADMIN_EMAIL" \
         --url="https://$FQDN" \
         --timezone="$TIMEZONE" \
@@ -314,14 +363,20 @@ configure_panel() {
         --redis-host=127.0.0.1 \
         --redis-pass= \
         --redis-port=6379 \
-        --settings-ui=true
+        --settings-ui=true; then
+        echo -e "${RED}Error: Environment setup failed${NC}"
+        exit 1
+    fi
 
-    php artisan p:environment:database \
+    if ! php artisan p:environment:database \
         --host=127.0.0.1 \
         --port=3306 \
         --database=panel \
         --username=pterodactyl \
-        --password="$DB_PASS"
+        --password="$DB_PASS"; then
+        echo -e "${RED}Error: Database configuration failed${NC}"
+        exit 1
+    fi
 
     # Update panel name in .env
     sed -i "s/APP_NAME=.*/APP_NAME=\"$PANEL_NAME\"/" .env
@@ -334,10 +389,10 @@ setup_database_tables() {
     echo ""
     echo -e "${CYAN}[5/8] Setting up database tables...${NC}"
 
-    cd $INSTALL_DIR
+    cd "$INSTALL_DIR" || { echo -e "${RED}Error: Failed to change to installation directory${NC}"; exit 1; }
 
     # Run migrations
-    php artisan migrate --seed --force
+    php artisan migrate --seed --force || { echo -e "${RED}Error: Database migrations failed${NC}"; exit 1; }
 
     # Create admin user
     php artisan p:user:make \
@@ -346,7 +401,7 @@ setup_database_tables() {
         --name-first="Admin" \
         --name-last="User" \
         --password="$ADMIN_PASS" \
-        --admin=1
+        --admin=1 || { echo -e "${RED}Error: Failed to create admin user${NC}"; exit 1; }
 
     echo -e "${GREEN}✓ Database tables created${NC}"
 }
@@ -356,15 +411,15 @@ build_frontend() {
     echo ""
     echo -e "${CYAN}[6/8] Building frontend assets...${NC}"
 
-    cd $INSTALL_DIR
+    cd "$INSTALL_DIR" || { echo -e "${RED}Error: Failed to change to installation directory${NC}"; exit 1; }
 
     # Install Node dependencies
     echo -e "${BLUE}Installing Node.js dependencies...${NC}"
-    yarn install --frozen-lockfile
+    yarn install --frozen-lockfile || { echo -e "${RED}Error: Yarn install failed${NC}"; exit 1; }
 
     # Build
     echo -e "${BLUE}Building frontend (this may take a few minutes)...${NC}"
-    yarn build:production
+    yarn build:production || { echo -e "${RED}Error: Frontend build failed${NC}"; exit 1; }
 
     echo -e "${GREEN}✓ Frontend built${NC}"
 }
@@ -427,8 +482,11 @@ EOF
     rm -f /etc/nginx/sites-enabled/default
 
     # Test and reload
-    nginx -t
-    systemctl reload nginx
+    if ! nginx -t; then
+        echo -e "${RED}Error: Nginx configuration test failed${NC}"
+        exit 1
+    fi
+    systemctl reload nginx || { echo -e "${RED}Error: Failed to reload nginx${NC}"; exit 1; }
 
     # Configure SSL if requested
     if [[ "$USE_SSL" == "y" || "$USE_SSL" == "Y" ]]; then
@@ -445,10 +503,10 @@ finalize_installation() {
     echo ""
     echo -e "${CYAN}[8/8] Finalizing installation...${NC}"
 
-    cd $INSTALL_DIR
+    cd "$INSTALL_DIR" || { echo -e "${RED}Error: Failed to change to installation directory${NC}"; exit 1; }
 
     # Set permissions
-    chown -R www-data:www-data $INSTALL_DIR/*
+    chown -R www-data:www-data "$INSTALL_DIR"/* || { echo -e "${RED}Error: Failed to set file permissions${NC}"; exit 1; }
 
     # Create queue worker service
     cat > /etc/systemd/system/pteroq.service <<EOF
@@ -469,21 +527,24 @@ RestartSec=5s
 WantedBy=multi-user.target
 EOF
 
-    # Create cron job
-    (crontab -l 2>/dev/null | grep -v "pterodactyl"; echo "* * * * * php $INSTALL_DIR/artisan schedule:run >> /dev/null 2>&1") | crontab -
+    # Create cron job (avoid duplicates)
+    if ! crontab -l 2>/dev/null | grep -q "$INSTALL_DIR/artisan schedule:run"; then
+        (crontab -l 2>/dev/null; echo "* * * * * php $INSTALL_DIR/artisan schedule:run >> /dev/null 2>&1") | crontab -
+    fi
 
     # Enable and start services
     systemctl daemon-reload
-    systemctl enable --now pteroq
-    systemctl enable --now redis-server
-    systemctl enable --now nginx
-    systemctl enable --now php8.2-fpm
-    systemctl enable --now mariadb
+    systemctl enable --now redis-server || { echo -e "${RED}Error: Failed to start redis-server${NC}"; exit 1; }
+    systemctl enable --now php8.2-fpm || { echo -e "${RED}Error: Failed to start php8.2-fpm${NC}"; exit 1; }
+    systemctl enable --now mariadb || { echo -e "${RED}Error: Failed to start mariadb${NC}"; exit 1; }
+    sleep 2
+    systemctl enable --now nginx || { echo -e "${RED}Error: Failed to start nginx${NC}"; exit 1; }
+    systemctl enable --now pteroq || { echo -e "${RED}Error: Failed to start pteroq${NC}"; exit 1; }
 
     # Clear caches
-    php artisan config:cache
-    php artisan view:cache
-    php artisan route:cache
+    php artisan config:cache || { echo -e "${YELLOW}Warning: Failed to cache config${NC}"; }
+    php artisan view:cache || { echo -e "${YELLOW}Warning: Failed to cache views${NC}"; }
+    php artisan route:cache || { echo -e "${YELLOW}Warning: Failed to cache routes${NC}"; }
 
     echo -e "${GREEN}✓ Installation finalized${NC}"
 }
