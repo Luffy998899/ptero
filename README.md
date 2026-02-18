@@ -46,7 +46,7 @@ A fully customized Pterodactyl Panel with game-specific addons, admin tools, and
 ### One-Command Installation
 
 ```bash
-bash <(curl -s https://raw.githubusercontent.com/MuLTiAcidi/pterodactyl-addons/main/install.sh)
+bash <(curl -s https://raw.githubusercontent.com/Luffy998899/ptero/main/install.sh)
 ```
 
 The script will:
@@ -80,7 +80,7 @@ If you prefer manual installation:
 ```bash
 # 1. Download the panel
 cd /var/www
-curl -Lo pterodactyl.tar.gz https://github.com/MuLTiAcidi/pterodactyl-addons/releases/latest/download/pterodactyl-addons-panel.tar.gz
+curl -Lo pterodactyl.tar.gz https://github.com/Luffy998899/ptero/releases/latest/download/pterodactyl-addons-panel.tar.gz
 mkdir pterodactyl && tar -xzf pterodactyl.tar.gz -C pterodactyl
 cd pterodactyl
 
@@ -102,7 +102,7 @@ chown -R www-data:www-data /var/www/pterodactyl/*
 After installing the panel, you need Wings on your game server nodes:
 
 ```bash
-bash <(curl -s https://raw.githubusercontent.com/MuLTiAcidi/pterodactyl-addons/main/wings-install.sh)
+bash <(curl -s https://raw.githubusercontent.com/Luffy998899/ptero/main/wings-install.sh)
 ```
 
 Or use the official Pterodactyl Wings installer.
@@ -127,8 +127,8 @@ STRIPE_WEBHOOK_SECRET=whsec_xxx
 
 ## 🆘 Support
 
-- **Issues:** [GitHub Issues](https://github.com/MuLTiAcidi/pterodactyl-addons/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/MuLTiAcidi/pterodactyl-addons/discussions)
+- **Issues:** [GitHub Issues](https://github.com/Luffy998899/ptero/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/Luffy998899/ptero/discussions)
 
 ## 📜 License
 
