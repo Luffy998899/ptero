@@ -29,7 +29,7 @@ WHITE='\033[1;37m'
 NC='\033[0m' # No Color
 
 # Variables
-GITHUB_URL="https://github.com/MuLTiAcidi/pterodactyl-addons"
+GITHUB_URL="https://github.com/Luffy998899/ptero"
 PANEL_VERSION="1.0.0"
 INSTALL_DIR="/var/www/pterodactyl"
 
@@ -321,16 +321,36 @@ install_panel() {
 
     # Create directory
     mkdir -p "$INSTALL_DIR" || { echo -e "${RED}Error: Failed to create installation directory${NC}"; exit 1; }
+
+    # Get script directory for local panel source
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    LOCAL_PANEL_SOURCE="$SCRIPT_DIR/pterodactyl"
+
+    # Check if local pterodactyl folder exists
+    if [ -d "$LOCAL_PANEL_SOURCE" ]; then
+        echo -e "${BLUE}Using local pterodactyl folder...${NC}"
+        
+        # Copy from local folder
+        cp -r "$LOCAL_PANEL_SOURCE"/* "$INSTALL_DIR/" || { echo -e "${RED}Error: Failed to copy panel files${NC}"; exit 1; }
+        
+        echo -e "${GREEN}✓ Local panel files copied successfully${NC}"
+    else
+        echo -e "${YELLOW}[*] Local panel folder not found, downloading from GitHub...${NC}"
+        echo -e "${BLUE}Downloading panel package...${NC}"
+        
+        cd "$INSTALL_DIR" || { echo -e "${RED}Error: Failed to change to installation directory${NC}"; exit 1; }
+        
+        curl -Lo panel.tar.gz "${GITHUB_URL}/releases/latest/download/pterodactyl.tar.gz" || { echo -e "${RED}Error: Failed to download panel${NC}"; exit 1; }
+
+        # Extract
+        echo -e "${BLUE}Extracting panel...${NC}"
+        tar -xzf panel.tar.gz || { echo -e "${RED}Error: Failed to extract panel${NC}"; exit 1; }
+        rm panel.tar.gz
+        
+        echo -e "${GREEN}✓ Panel downloaded and extracted from GitHub${NC}"
+    fi
+
     cd "$INSTALL_DIR" || { echo -e "${RED}Error: Failed to change to installation directory${NC}"; exit 1; }
-
-    # Download panel
-    echo -e "${BLUE}Downloading panel package...${NC}"
-    curl -Lo panel.tar.gz "${GITHUB_URL}/releases/latest/download/pterodactyl-addons-panel.tar.gz"
-
-    # Extract
-    echo -e "${BLUE}Extracting panel...${NC}"
-    tar -xzf panel.tar.gz
-    rm panel.tar.gz
 
     # Fix migration bug: Remove ->after('price_cents') from payment migration
     if [ -f "database/migrations/2026_01_21_110000_create_payments_table.php" ]; then
